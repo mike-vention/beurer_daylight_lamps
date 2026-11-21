@@ -1605,13 +1605,17 @@ class BeurerInstance:
     async def turn_off(self) -> None:
         """Turn off the lamp.
 
-        Sends off commands for both white and RGB modes to ensure the device
-        is fully turned off.
+        Sends OFF only for the channel that is lit. Sending OFF for both
+        (WHITE, then RGB) while RGB was on left the white LEDs of a TL100
+        glowing faintly, with the lamp reporting both channels off.
         """
         LOGGER.debug("Turning off %s", self._mac)
-        await self._send_packet([CMD_OFF, MODE_WHITE])
-        await asyncio.sleep(0.1)
-        await self._send_packet([CMD_OFF, MODE_RGB])
+        if not self._light_on and not self._color_on:
+            # Nothing known to be lit (stale state, or already off): ask the
+            # lamp before choosing the channel.
+            await self._request_status()
+            await asyncio.sleep(STATUS_DELAY)
+        await self._send_packet([CMD_OFF, self._lit_mode_byte()])
         self._light_on = False
         self._color_on = False
         # The off notification that follows matches this optimistic state, so
@@ -1619,6 +1623,16 @@ class BeurerInstance:
         await self._trigger_update()
         await asyncio.sleep(TURN_OFF_DELAY)
         await self._request_status()
+
+    def _lit_mode_byte(self) -> int:
+        """Return the mode byte of the channel that is lit.
+
+        Falls back to the last used mode when the flags do not single out
+        one channel (both off, or both reported on).
+        """
+        if self._color_on != self._light_on:
+            return MODE_RGB if self._color_on else MODE_WHITE
+        return MODE_RGB if self._mode == ColorMode.RGB else MODE_WHITE
 
     async def _request_status(self) -> None:
         """Request status update from device.

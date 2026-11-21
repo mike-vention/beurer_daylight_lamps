@@ -110,9 +110,12 @@ SERVICE_SCHEMA = vol.Schema(
     }
 )
 
+# HA merges the call's target (entity_id, ...) into the service data; without
+# these fields the schema rejects every targeted call as "extra keys".
 SERVICE_RAW_SCHEMA = vol.Schema(
     {
         vol.Required(ATTR_COMMAND): cv.string,
+        **cv.ENTITY_SERVICE_FIELDS,
     }
 )
 

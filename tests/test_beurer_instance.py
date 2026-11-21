@@ -1292,6 +1292,92 @@ class TestBeurerTurnOnOff:
 
         callback.assert_called()
 
+    @staticmethod
+    def _connected_instance(mock_device):
+        """Return an instance whose writes are recorded by a mock client."""
+        from custom_components.beurer_daylight_lamps.beurer_daylight_lamps import (
+            BeurerInstance,
+        )
+
+        instance = BeurerInstance(mock_device)
+        instance._client = MagicMock()
+        instance._client.is_connected = True
+        instance._client.write_gatt_char = AsyncMock()
+        instance._write_uuid = "test-uuid"
+        return instance
+
+    @staticmethod
+    def _sent_commands(instance):
+        """Return (command, mode) of every packet written, in order."""
+        packets = [
+            call.args[1] for call in instance._client.write_gatt_char.call_args_list
+        ]
+        return [(packet[7], packet[8]) for packet in packets]
+
+    @pytest.mark.asyncio
+    async def test_turn_off_rgb_sends_no_white_off(self, mock_device):
+        """OFF WHITE while RGB is lit leaves the white LEDs glowing (TL100)."""
+        from homeassistant.components.light import ColorMode
+
+        from custom_components.beurer_daylight_lamps.const import (
+            CMD_OFF,
+            MODE_RGB,
+            MODE_WHITE,
+        )
+
+        instance = self._connected_instance(mock_device)
+        instance._mode = ColorMode.RGB
+        instance._color_on = True
+
+        await instance.turn_off()
+
+        sent = self._sent_commands(instance)
+        assert sent[0] == (CMD_OFF, MODE_RGB)
+        assert (CMD_OFF, MODE_WHITE) not in sent
+
+    @pytest.mark.asyncio
+    async def test_turn_off_white_sends_no_rgb_off(self, mock_device):
+        """White lit: only the white channel gets an OFF."""
+        from custom_components.beurer_daylight_lamps.const import (
+            CMD_OFF,
+            MODE_RGB,
+            MODE_WHITE,
+        )
+
+        instance = self._connected_instance(mock_device)
+        instance._light_on = True
+
+        await instance.turn_off()
+
+        sent = self._sent_commands(instance)
+        assert sent[0] == (CMD_OFF, MODE_WHITE)
+        assert (CMD_OFF, MODE_RGB) not in sent
+
+    @pytest.mark.asyncio
+    async def test_turn_off_unknown_state_asks_lamp_first(self, mock_device):
+        """Nothing known to be lit: status first, then OFF for the last mode."""
+        from homeassistant.components.light import ColorMode
+
+        from custom_components.beurer_daylight_lamps.const import (
+            CMD_OFF,
+            CMD_STATUS,
+            MODE_RGB,
+            MODE_WHITE,
+        )
+
+        instance = self._connected_instance(mock_device)
+        instance._mode = ColorMode.RGB
+
+        await instance.turn_off()
+
+        sent = self._sent_commands(instance)
+        assert sent[:3] == [
+            (CMD_STATUS, MODE_WHITE),
+            (CMD_STATUS, MODE_RGB),
+            (CMD_OFF, MODE_RGB),
+        ]
+        assert (CMD_OFF, MODE_WHITE) not in sent
+
     @pytest.mark.asyncio
     async def test_turn_on_white_mode(self, mock_device):
         """Test turn_on in white mode."""

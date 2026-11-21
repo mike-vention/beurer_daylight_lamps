@@ -156,3 +156,17 @@ async def test_unload_entry(hass: HomeAssistant) -> None:
     assert result is True
     mock_coordinator.async_shutdown.assert_called_once()
     mock_instance.shutdown.assert_called_once()
+
+
+def test_raw_command_schema_accepts_entity_target() -> None:
+    """A targeted call must validate: HA merges the target into service data.
+
+    A plain schema rejected entity_id as an extra key, so the service could
+    not be called on any lamp.
+    """
+    from custom_components.beurer_daylight_lamps import SERVICE_RAW_SCHEMA
+
+    data = SERVICE_RAW_SCHEMA({"command": "35 02", "entity_id": "light.lamp"})
+
+    assert data["command"] == "35 02"
+    assert data["entity_id"] == ["light.lamp"]

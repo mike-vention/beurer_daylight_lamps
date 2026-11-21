@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.37.1] - 2026-11-21
+
+### Fixed
+
+- **`turn_off` from RGB left the white LEDs glowing**: the lamp got OFF for both channels (WHITE, then RGB). On a TL100 with RGB lit this left a faint white glow while the lamp reported both channels off, and repeating `turn_off` did not clear it. `turn_off` now sends OFF only for the channel that is lit; when nothing is known to be lit it asks the lamp for its status first and falls back to the last used mode.
+- **`send_raw_command` rejected every targeted call**: its schema did not allow the target fields Home Assistant merges into the service data, so the call failed validation. The schema now accepts them.
+
 ## [1.37.0] - 2026-10-21
 
 ### Fixed
